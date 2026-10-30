@@ -164,15 +164,27 @@ HTMLElement.prototype.requestPointerLock = function(options) {
 const ios = /iPad|iPhone|iPod/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 let saveFiles = null;
+
+// unadjustedMovement (raw mouse input) is only implemented on Windows/macOS/ChromeOS.
+// On Linux Chromium rejects with NotSupportedError, so retry without the option.
+const requestPointerLock = (element) => {
+    if (!element.originalRequestPointerLock) return;
+    const result = element.originalRequestPointerLock({ unadjustedMovement: true });
+    if (result && result.catch) result.catch(() => {
+        const retry = element.originalRequestPointerLock();
+        if (retry && retry.catch) retry.catch(e => console.error('requestPointerLock failed:', e));
+    });
+};
+
 // document.addEventListener('pointerlockchange', ()=>{if (!ios && document.pointerLockElement && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen()});
 document.addEventListener('fullscreenchange', () => {
     if (saveFiles) saveFiles();
-    if (document.fullscreenElement && !document.pointerLockElement && canvas.originalRequestPointerLock) canvas.originalRequestPointerLock({ unadjustedMovement: true });
+    if (document.fullscreenElement && !document.pointerLockElement) requestPointerLock(canvas);
     ui.style.visibility = document.fullscreenElement ? 'hidden' : 'visible';
 });
 const fullscreenAndPointerLock = async (e) => {
     if (ui.contains(e.target)) return;
-    if (!document.pointerLockElement && canvas.originalRequestPointerLock) canvas.originalRequestPointerLock({ unadjustedMovement: true });
+    if (!document.pointerLockElement) requestPointerLock(canvas);
     // if (!ios && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
 };
 blocker.addEventListener('keydown', fullscreenAndPointerLock);
